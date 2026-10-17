@@ -1,0 +1,9 @@
+.colony/brief.md
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.coverage

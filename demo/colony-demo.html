@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Colony demo: same wrong note, two kinds of memory</title>
+<style>
+:root{--bg:#eef1f4;--panel:#fff;--ink:#1b2733;--mute:#55636f;--line:#cdd5dc;--ok:#2f7f6f;--bad:#c2462f;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#12181f;--panel:#1a222b;--ink:#e3e9ef;--mute:#9aa8b4;--line:#2c3945;--ok:#5fbfa9;--bad:#e0715a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1000px;margin:0 auto;padding:28px 16px 40px}
+h1{font:600 clamp(26px,5vw,40px)/1.15 ui-serif,"Iowan Old Style",Georgia,serif;margin:0 0 10px;max-width:22ch}
+.lead{max-width:62ch;margin:0 0 6px}
+.caveat{max-width:62ch;margin:0 0 18px;color:var(--mute);font-size:14px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
+button,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 14px}
+button{cursor:pointer}button:hover{border-color:var(--ink)}
+input{width:84px}label{color:var(--mute);font-size:14px;margin-left:6px}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.step{margin-left:auto;color:var(--mute);font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.grid{grid-template-columns:1fr}}
+section{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
+h2{font:600 19px/1.3 ui-serif,Georgia,serif;margin:0 0 2px}
+.sub{margin:0 0 8px;color:var(--mute);font-size:14px}
+svg{display:block;width:100%;max-width:300px;margin:0 auto}
+.m{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--line);font-size:15px}
+.m b{font-variant-numeric:tabular-nums;text-align:right}
+.res{min-height:3.2em;margin:8px 0 0;font-size:14px;color:var(--mute)}
+.key{display:flex;gap:16px;justify-content:center;margin-top:18px;color:var(--mute);font-size:14px}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<main>
+<h1>Same wrong note, two kinds of memory</h1>
+<p class="lead">At step 4, one agent writes a wrong note. On the left, a note looks more trusted every time another agent agrees with it. On the right, only a passing check raises trust.</p>
+<p class="caveat">An illustrative simulation with fixed rules. It shows the mechanism, not how often this happens with real agents.</p>
+<div class="bar">
+  <button id="play">Play</button><button id="step">Step</button><button id="restart">Restart</button>
+  <label for="seed">Seed</label><input id="seed" type="number" value="7" min="1">
+  <span class="step" id="stepnum">step 0 of 30</span>
+</div>
+<div class="grid">
+  <section><h2>Trust by agreement</h2><p class="sub">Each agent that believes the note makes it look more trusted.</p>
+    <svg id="a" viewBox="0 0 240 240" role="img" aria-label="Eight agents in a ring, left memory"></svg>
+    <div class="m"><span>Agents holding the wrong note</span><b id="a1"></b></div>
+    <div class="m"><span>Agent-steps spent on it</span><b id="a2"></b></div>
+    <div class="m"><span>Note</span><b id="a3"></b></div>
+    <p class="res" id="ar" aria-live="polite"></p></section>
+  <section><h2>Trust by evidence (Colony)</h2><p class="sub">The note stays a lead until its check runs at step 12.</p>
+    <svg id="b" viewBox="0 0 240 240" role="img" aria-label="Eight agents in a ring, right memory"></svg>
+    <div class="m"><span>Agents holding the wrong note</span><b id="b1"></b></div>
+    <div class="m"><span>Agent-steps spent on it</span><b id="b2"></b></div>
+    <div class="m"><span>Note</span><b id="b3"></b></div>
+    <p class="res" id="br" aria-live="polite"></p></section>
+</div>
+<div class="key"><span><i class="dot" style="background:var(--ok)"></i>agent has the right fact</span><span><i class="dot" style="background:var(--bad)"></i>agent trusts the wrong note</span></div>
+</main>
+<script>
+// SIM-START
+const N = 8, INJECT = 4, VERIFY = 12, STEPS = 30;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function simulate(seed, guarded){
+  const r = mulberry32(seed), rnd = [];
+  for (let s = 0; s <= STEPS; s++) rnd.push(Array.from({length: N}, r)); // same draws for both memories
+  let bad = Array(N).fill(false), trust = 0, wasted = 0, note = "none yet";
+  const out = [];
+  for (let s = 0; s <= STEPS; s++) {
+    if (s === INJECT) { bad[0] = true; trust = 1; note = guarded ? "unverified lead" : "trust 1"; }
+    else if (s > INJECT) {
+      const n = bad.filter(Boolean).length;
+      let p = 0;
+      if (!guarded) { trust += n; p = Math.min(0.9, 0.08 * trust); note = "trust " + trust; }
+      else if (note === "unverified lead") p = 0.03;
+      if (p) bad = bad.map((b, i) => b || rnd[s][i] < p);
+      if (guarded && s === VERIFY) note = "check failed";
+      if (guarded && s === VERIFY + 1) { bad = Array(N).fill(false); note = "quarantined"; }
+    }
+    const n = bad.filter(Boolean).length;
+    wasted += n;
+    out.push({step: s, bad: bad.slice(), n, wasted, note, mill: !guarded && n >= 6});
+  }
+  return out;
+}
+// SIM-END
+const $ = id => document.getElementById(id);
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let runs, cur = 0, timer = null, rot = 0;
+function setup(){ const seed = Math.max(1, +$("seed").value || 7); runs = [simulate(seed, false), simulate(seed, true)]; cur = 0; draw(); }
+function ring(svg, s){
+  let h = "";
+  if (s.mill) h += '<circle cx="120" cy="120" r="80" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="3 7" opacity=".6"/>';
+  for (let i = 0; i < N; i++) {
+    const a = 2 * Math.PI * i / N - Math.PI / 2 + (s.mill && !still ? rot : 0);
+    h += `<circle cx="${120 + 80 * Math.cos(a)}" cy="${120 + 80 * Math.sin(a)}" r="14" fill="${s.bad[i] ? "var(--bad)" : "var(--ok)"}"/>`;
+  }
+  svg.innerHTML = h;
+}
+function draw(){
+  ["a", "b"].forEach((k, j) => {
+    const s = runs[j][cur];
+    ring($(k), s);
+    $(k + "1").textContent = s.n + " of " + N; $(k + "2").textContent = s.wasted; $(k + "3").textContent = s.note;
+    let msg = "";
+    if (cur === STEPS) msg = j === 0
+      ? "Nothing in this memory can tell the note is wrong. The agents keep confirming each other, and the ring keeps turning."
+      : "The failed check outvoted the agents. The note is quarantined, not deleted, and the agents are back on the right fact.";
+    else if (j === 0 && s.mill) msg = "Agents are only reading each other's trail: an ant mill.";
+    else if (j === 1 && s.note === "check failed") msg = "The check ran against the repo and failed.";
+    $(k + "r").textContent = msg;
+  });
+  $("stepnum").textContent = "step " + cur + " of " + STEPS;
+}
+function tick(){ if (cur < STEPS) { cur++; draw(); } else stop(); }
+function stop(){ clearInterval(timer); timer = null; $("play").textContent = "Play"; }
+$("play").onclick = () => { if (timer) return stop(); if (cur >= STEPS) setup(); $("play").textContent = "Pause"; timer = setInterval(tick, 650); };
+$("step").onclick = () => { stop(); if (cur >= STEPS) setup(); else tick(); };
+$("restart").onclick = () => { stop(); setup(); };
+$("seed").onchange = () => { stop(); setup(); };
+setup();
+(function spin(){ rot += 0.025; if (runs[0][cur].mill && !still) ring($("a"), runs[0][cur]); requestAnimationFrame(spin); })();
+</script>
+</body>
+</html>

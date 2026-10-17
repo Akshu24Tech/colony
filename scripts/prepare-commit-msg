@@ -1,0 +1,5 @@
+#!/bin/sh
+# colony: tag each commit with the agent that made it.
+# Set COLONY_AGENT (e.g. "claude-code/opus", "gemini-cli", "antigravity") in that agent's shell.
+[ -n "$COLONY_AGENT" ] || exit 0
+git interpret-trailers --in-place --if-exists doNothing --trailer "Agent: $COLONY_AGENT" "$1"

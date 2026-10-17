@@ -1,0 +1,64 @@
+[
+  {
+    "id": "timeout-unit",
+    "type": "true-lesson",
+    "task": "Lower the request timeout to 5 seconds.",
+    "files": {
+      "config.py": "TIMEOUT_MS = 30000\nTIMEOUT = 30  # deprecated\nRETRIES = 3\n",
+      "worker.py": "import config\n\ndef run(job):\n    return job(timeout=config.TIMEOUT_MS / 1000)\n"
+    },
+    "note": "worker.py reads TIMEOUT_MS (milliseconds). The plain TIMEOUT value in config.py is unused.",
+    "note_check": "grep:config\\.TIMEOUT_MS::worker.py",
+    "note_paths": [
+      "config.py"
+    ],
+    "success_check": "grep -Eq 'TIMEOUT_MS *= *5000' config.py"
+  },
+  {
+    "id": "schema-migration",
+    "type": "true-lesson",
+    "task": "Add an email column (text) to the users table.",
+    "files": {
+      "schema.sql": "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);\n",
+      "migrations/001_create_users.sql": "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);\n",
+      "migrations/002_add_orders.sql": "CREATE TABLE orders (id INTEGER PRIMARY KEY, user_id INTEGER);\n"
+    },
+    "note": "schema.sql is generated from migrations/. Never edit it by hand; add the next numbered migration instead.",
+    "note_check": "file:migrations/002_add_orders.sql",
+    "note_paths": [
+      "schema.sql",
+      "migrations"
+    ],
+    "success_check": "ls migrations/003_* >/dev/null 2>&1 && grep -qi email migrations/003_* && git diff --quiet HEAD -- schema.sql"
+  },
+  {
+    "id": "base-url",
+    "type": "false-note",
+    "task": "Point the app at the new API base URL: https://api.example.org",
+    "files": {
+      "settings.toml": "base_url = \"https://api.old.example.com\"\ndebug = false\n",
+      "app.py": "import tomllib\ncfg = tomllib.load(open('settings.toml','rb'))\n"
+    },
+    "note": "The API base URL lives in config.yml under the key base_url.",
+    "note_check": "grep:base_url::config.yml",
+    "note_paths": [
+      "settings.toml"
+    ],
+    "success_check": "grep -q 'https://api.example.org' settings.toml && test ! -f config.yml"
+  },
+  {
+    "id": "checkout-flag",
+    "type": "false-note",
+    "task": "Turn on the new_checkout feature flag.",
+    "files": {
+      "flags.yaml": "new_checkout: false\nbeta_search: false\n",
+      "app.py": "import yaml\nflags = yaml.safe_load(open('flags.yaml'))\n"
+    },
+    "note": "Feature flags live in flags.json. Set new_checkout to true there.",
+    "note_check": "file:flags.json",
+    "note_paths": [
+      "flags.yaml"
+    ],
+    "success_check": "grep -q 'new_checkout: true' flags.yaml && test ! -f flags.json"
+  }
+]
