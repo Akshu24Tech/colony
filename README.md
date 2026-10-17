@@ -57,4 +57,4 @@ python eval/run_eval.py --agent-cmd 'python3 {root}/eval/mock_agent.py {prompt}'
 ```
 
 ## License
-MIT. Replace `<YOUR NAME>` in LICENSE before publishing.
+MIT License. Copyright (c) 2026 Akshu Grewal. See [LICENSE](LICENSE) for details.
